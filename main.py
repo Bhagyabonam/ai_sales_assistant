@@ -95,7 +95,7 @@ def analyze_sentiment_combined(text):
     else:
         return "Neutral", combined_score
 
-
+# this function will generate the response based on the sentiment of the text
 def generate_response(prompt):
     analysis = TextBlob(prompt) 
     sentiment = analysis.sentiment.polarity 
@@ -105,8 +105,6 @@ def generate_response(prompt):
         return "Negative", sentiment
     else: 
         return "Neutral", sentiment
-
-
 
 def load_csv(file_path):
     try:
