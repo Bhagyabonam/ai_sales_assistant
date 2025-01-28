@@ -13,11 +13,8 @@ import torch
 import faiss
 from sentence_transformers import SentenceTransformer
 import matplotlib.pyplot as plt
-from sklearn.feature_extraction.text import TfidfVectorizer
-import zipfile
 from huggingface_hub import login
-import json
-from datetime import datetime
+import os
 
 SPREADSHEET_ID = "1CsBub3Jlwyo7WHMQty6SDnBShIZMjl5XTVSoOKrxZhc"
 RANGE_NAME = 'Sheet1!A1:E'
@@ -85,8 +82,8 @@ def update_google_sheet(transcribed_text, sentiment,objection, recommendations,o
         st.error(f"Failed to update Google Sheets: {e}")
 
 
-huggingface_api_key = r"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"
 
+huggingface_api_key= os.getenv("HUGGINGFACE_TOKEN")
 login(token=huggingface_api_key)
 
 model_name = "tabularisai/multilingual-sentiment-analysis"
