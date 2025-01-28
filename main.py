@@ -1,7 +1,7 @@
 import chromadb
 from chromadb.config import Settings
 from chromadb import Client
-from transformers import AutoTokenizer, AutoModel, pipeline
+from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, pipeline
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -15,10 +15,12 @@ from sentence_transformers import SentenceTransformer
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 import zipfile
-
+from huggingface_hub import login
+import json
+from datetime import datetime
 
 SPREADSHEET_ID = "1CsBub3Jlwyo7WHMQty6SDnBShIZMjl5XTVSoOKrxZhc"
-RANGE_NAME = 'Sheet1!A1:B1'
+RANGE_NAME = 'Sheet1!A1:E'
 SERVICE_ACCOUNT_FILE = r"C:\Users\bhagy\AI\credentials.json"
 
 
@@ -49,21 +51,30 @@ except Exception:
     collection = chroma_client.create_collection(collection_name)
 
 def get_google_sheets_service():
-    credentials = Credentials.from_service_account_file(
+    creds = Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
-    return build('sheets', 'v4', credentials=credentials)
+    return creds
 
-def update_google_sheet(response, sentiment):
-    """
-    Writes the AI response and sentiment to Google Sheets.
-    """
+def update_google_sheet(transcribed_text, sentiment,objection, recommendations,overall_sentiment):
+    creds = get_google_sheets_service()
+    service = build('sheets', 'v4', credentials=creds)
+    sheet = service.spreadsheets()
+    values = [[
+        transcribed_text,
+        sentiment,
+        objection,
+        recommendations,
+        overall_sentiment
+    ]]
+    body = {'values': values}
+
+    header=["transcribed_text", "sentiment","objection", "recommendations","overall_sentiment"]
+    all_values=[header]+values
+    body = {'values': values}
     try:
-        service = get_google_sheets_service()
-        values = [[str(response), str(sentiment)]]
-        body = {'values': values}
-        result = service.spreadsheets().values().update(
+        result = sheet.values().append(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGE_NAME,
             valueInputOption="RAW",
@@ -74,37 +85,43 @@ def update_google_sheet(response, sentiment):
         st.error(f"Failed to update Google Sheets: {e}")
 
 
+huggingface_api_key = r"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"
 
-def analyze_sentiment_combined(text):
-  
-    textblob_polarity = TextBlob(text).sentiment.polarity
+login(token=huggingface_api_key)
 
-    huggingface_result = sentiment_pipeline(text)[0]
-    huggingface_label = huggingface_result['label']
-    huggingface_score = huggingface_result['score']
-    print("huggingface_score:", huggingface_score)
-    textblob_normalized_score = (textblob_polarity + 1) / 2
-    print("textblob_normalized_score:", textblob_normalized_score)
-    combined_score = (textblob_normalized_score + huggingface_score) / 2
-    print("combined_score:", combined_score)
-    # Determine final sentiment
-    if combined_score > 0.6:
-        return "Positive", combined_score
-    elif combined_score < 0.4:
-        return "Negative", combined_score
-    else:
-        return "Neutral", combined_score
+model_name = "tabularisai/multilingual-sentiment-analysis"
+model = AutoModelForSequenceClassification.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+sentiment_analyzer = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
-# this function will generate the response based on the sentiment of the text
-def generate_response(prompt):
-    analysis = TextBlob(prompt) 
-    sentiment = analysis.sentiment.polarity 
-    if sentiment > 0: 
-        return "Positive", sentiment
-    elif sentiment < 0:
-        return "Negative", sentiment
-    else: 
-        return "Neutral", sentiment
+def preprocess_text(text):
+    return text.strip().lower()
+
+def analyze_sentiment(text):
+    try:
+        if not text.strip():
+            return "NEUTRAL", 0.0
+        processed_text = preprocess_text(text)
+        result = sentiment_analyzer(processed_text)[0]
+        
+        print(f"Sentiment Analysis Result: {result}")
+        
+        # Map raw labels to sentiments
+        sentiment_map = {
+            'Very Negative': "NEGATIVE",
+            'Negative': "NEGATIVE",
+            'Neutral': "NEUTRAL",
+            'Positive': "POSITIVE",
+            'Very Positive': "POSITIVE"
+        }
+        
+        sentiment = sentiment_map.get(result['label'], "NEUTRAL")
+        return sentiment, result['score']
+        
+    except Exception as e:
+        print(f"Error in sentiment analysis: {e}")
+        return "NEUTRAL", 0.5
+
 
 def load_csv(file_path):
     try:
@@ -219,6 +236,68 @@ if "crm_history" not in st.session_state:
 if "app_feedback" not in st.session_state:
     st.session_state["app_feedback"] = []
 
+def generate_comprehensive_summary(chunks):
+    full_text = " ".join([chunk[0] for chunk in chunks])
+    
+    total_chunks = len(chunks)
+    sentiments = [chunk[1] for chunk in chunks]
+    
+    context_keywords = {
+        'product_inquiry': ['laptop', 'headphone', 'smartphone', 'tablet', 'model', 'features'],
+        'pricing': ['price', 'cost', 'budget', 'discount', 'offer'],
+        'negotiation': ['payment', 'installment', 'financing', 'affordable', 'deal'],
+        'compatibility': ['compatible', 'battery life', 'OS', 'Android', 'iOS'],
+        'accessories': ['case', 'cover', 'charger', 'headset']
+    }
+    
+    themes = []
+    for keyword_type, keywords in context_keywords.items():
+        if any(keyword.lower() in full_text.lower() for keyword in keywords):
+            themes.append(keyword_type)
+    
+    positive_count = sentiments.count('POSITIVE')
+    negative_count = sentiments.count('NEGATIVE')
+    neutral_count = sentiments.count('NEUTRAL')
+    
+    key_interactions = []
+    for chunk in chunks:
+        if any(keyword.lower() in chunk[0].lower() for keyword in ['laptop', 'headphone', 'tablet', 'smartphone', 'price', 'battery']):
+            key_interactions.append(chunk[0])
+    
+    summary = f"Conversation Summary:\n"
+    
+    if 'product_inquiry' in themes:
+        summary += "• Customer inquired about various products such as laptops, headphones, smartphones, or tablets.\n"
+    
+    if 'pricing' in themes:
+        summary += "• Price, cost, and available discounts were discussed.\n"
+    
+    if 'negotiation' in themes:
+        summary += "• Customer and seller discussed payment plans, financing options, or special deals.\n"
+    
+    if 'compatibility' in themes:
+        summary += "• Compatibility of the product with different systems or accessories was explored.\n"
+    
+    if 'accessories' in themes:
+        summary += "• Customer showed interest in additional accessories for the product.\n"
+    
+    summary += f"\nConversation Sentiment:\n"
+    summary += f"• Positive Interactions: {positive_count}\n"
+    summary += f"• Negative Interactions: {negative_count}\n"
+    summary += f"• Neutral Interactions: {neutral_count}\n"
+    
+    summary += "\nKey Conversation Points:\n"
+    for interaction in key_interactions[:3]:  # Limit to top 3 key points
+        summary += f"• {interaction}\n"
+    
+    if positive_count > negative_count:
+        summary += "\nOutcome: Constructive and promising interaction with interest in the product."
+    elif negative_count > positive_count:
+        summary += "\nOutcome: Interaction may need further follow-up or clarification on product features."
+    else:
+        summary += "\nOutcome: Neutral interaction, potential for future engagement or inquiry."
+    
+    return summary
 
 def add_to_sentiment_history(text, sentiment_label, sentiment_score, closest_objection, response):
     st.session_state.sentiment_history.append({
@@ -297,7 +376,17 @@ def show_help():
         - **Changelog**: We release regular updates to improve performance. Please refer to the changelog for new features and improvements.
         - **How to Update**: If an update is available, follow the instructions in the settings tab to install the latest version.
     """)
-
+def calculate_overall_sentiment(sentiment_scores):
+    if sentiment_scores:
+        average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+        overall_sentiment = (
+            "POSITIVE" if average_sentiment > 0 else
+            "NEGATIVE" if average_sentiment < 0 else
+            "NEUTRAL"
+        )
+    else:
+        overall_sentiment = "NEUTRAL"
+    return overall_sentiment
 
 def process_real_time_audio():
     recognizer = sr.Recognizer()
@@ -305,13 +394,15 @@ def process_real_time_audio():
 
     st.write("Adjusting microphone for ambient noise... Please wait.")
     with microphone as source:
-        recognizer.adjust_for_ambient_noise(source)
+        recognizer.adjust_for_ambient_noise(source,duration=2)
 
     st.write("Listening for audio... Speak into the microphone.")
     while True:
         try:
             with microphone as source:
                 audio = recognizer.listen(source, timeout=15, phrase_time_limit=20)
+
+
 
             st.write("Transcribing audio...")
             transcribed_text = recognizer.recognize_google(audio)
@@ -322,7 +413,7 @@ def process_real_time_audio():
                 break
 
             st.markdown("### **Sentiment Analysis**")
-            sentiment_label, sentiment_score = analyze_sentiment_combined(transcribed_text)
+            sentiment_label, sentiment_score = analyze_sentiment(transcribed_text)
             st.write(f"Sentiment: {sentiment_label}")
             st.write(f"Sentiment Score: {sentiment_score}")
 
@@ -343,20 +434,26 @@ def process_real_time_audio():
             st.write(f"Objection: {closest_objection}")
             st.write(f" Response: {response}")
 
-            update_google_sheet(f"Recommendations: {recommendations}", "N/A")
+            update_google_sheet(
+                transcribed_text=transcribed_text,
+                sentiment=f"{sentiment_label} ({sentiment_score})",
+                objection=f"Objection: {closest_objection} | Response: {response}",
+                recommendations=str(recommendations),
+                overall_sentiment=f"{sentiment_label}"
+            )
 
         except sr.UnknownValueError:
             st.warning("Could not understand the audio.")
         except Exception as e:
             st.error(f"Error: {e}")
             break
-
+  
 def generate_sentiment_pie_chart(sentiment_history):
     if not sentiment_history:
         st.warning("No sentiment history available to generate a pie chart.")
         return
 
-
+    # Initialize sentiment counts
     sentiment_counts = {
         "Positive": 0,
         "Negative": 0,
@@ -364,13 +461,18 @@ def generate_sentiment_pie_chart(sentiment_history):
     }
 
     for entry in sentiment_history:
-        sentiment_counts[entry["Sentiment"]] += 1
+        sentiment = entry["Sentiment"].capitalize()  # Normalize to match "Positive", "Negative", "Neutral"
+        if sentiment in sentiment_counts:
+            sentiment_counts[sentiment] += 1
+        else:
+            # Handle unknown sentiment values gracefully
+            st.warning(f"Unknown sentiment encountered: {entry['Sentiment']}")
 
-   
-    labels = sentiment_counts.keys()
-    sizes = sentiment_counts.values()
-    colors = ['#6dcf6d', '#f76c6c', '#6c8df7']  
-
+    # Create the pie chart (using matplotlib or any charting library)
+    labels = list(sentiment_counts.keys())
+    sizes = list(sentiment_counts.values())
+    colors = ['#6dcf6d', '#f76c6c', '#6c8df7']
+    
    
     fig, ax = plt.subplots()
     plt.figure(figsize=(6,6))
@@ -390,24 +492,18 @@ def generate_post_call_summary(sentiment_history, recommendations=[]):
     summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
     combined_text = " ".join([item["Text"] for item in sentiment_history])
 
-    summary = summarizer(combined_text, max_length=100, min_length=30, do_sample=False)[0]["summary_text"]
+    # summary = summarizer(combined_text, max_length=100, min_length=30, do_sample=False)[0]["summary_text"]
     scores = [item["Score"] for item in sentiment_history]
-    average_sentiment_score = sum(scores) / len(scores)
-
-    if average_sentiment_score > 0.05:
-        overall_sentiment = "Positive"
-    elif average_sentiment_score < -0.05:
-        overall_sentiment = "Negative"
-    else:
-        overall_sentiment = "Neutral" 
 
     st.markdown("## Summary of the Call")
+    chunks = [(entry["Text"], entry["Sentiment"]) for entry in sentiment_history]
+    summary = generate_comprehensive_summary(chunks)
     st.write(summary)
 
     st.markdown("### **Overall Sentiment for the Call**")
+    sentiment_scores = [entry["Score"] for entry in sentiment_history]
+    overall_sentiment = calculate_overall_sentiment(sentiment_scores)
     st.write(f"Overall Sentiment: {overall_sentiment}")
-    st.write(f"Average Sentiment Score: {average_sentiment_score:.2f}")
-    sentiment_scores = df["Score"].values
 
     col1,col2=st.columns(2)
     with col1:
@@ -526,8 +622,6 @@ def main():
         else:
             st.warning("No feedback submitted yet.")
         
-        feedback = st.radio("Was this helpful?", ["Yes", "No"])
-        st.button("Sumbit")
 
     file_path = csv_file_path  
     data = load_csv(file_path)
