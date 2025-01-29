@@ -81,8 +81,7 @@ def update_google_sheet(transcribed_text, sentiment,objection, recommendations,o
     except Exception as e:
         st.error(f"Failed to update Google Sheets: {e}")
 
-
-
+# hugging face
 huggingface_api_key= os.getenv("HUGGINGFACE_TOKEN")
 login(token=huggingface_api_key)
 
