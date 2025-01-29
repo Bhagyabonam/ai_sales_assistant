@@ -15,6 +15,7 @@ from sentence_transformers import SentenceTransformer
 import matplotlib.pyplot as plt
 from huggingface_hub import login
 import os
+from dotenv import load_dotenv
 
 SPREADSHEET_ID = "1CsBub3Jlwyo7WHMQty6SDnBShIZMjl5XTVSoOKrxZhc"
 RANGE_NAME = 'Sheet1!A1:E'
@@ -81,7 +82,7 @@ def update_google_sheet(transcribed_text, sentiment,objection, recommendations,o
     except Exception as e:
         st.error(f"Failed to update Google Sheets: {e}")
 
-# hugging face
+load_dotenv()
 huggingface_api_key= os.getenv("HUGGINGFACE_TOKEN")
 login(token=huggingface_api_key)
 
