@@ -450,7 +450,6 @@ def generate_sentiment_pie_chart(sentiment_history):
         st.warning("No sentiment history available to generate a pie chart.")
         return
 
-    # Initialize sentiment counts
     sentiment_counts = {
         "Positive": 0,
         "Negative": 0,
@@ -458,14 +457,11 @@ def generate_sentiment_pie_chart(sentiment_history):
     }
 
     for entry in sentiment_history:
-        sentiment = entry["Sentiment"].capitalize()  # Normalize to match "Positive", "Negative", "Neutral"
+        sentiment = entry["Sentiment"].capitalize() 
         if sentiment in sentiment_counts:
             sentiment_counts[sentiment] += 1
         else:
-            # Handle unknown sentiment values gracefully
             st.warning(f"Unknown sentiment encountered: {entry['Sentiment']}")
-
-    # Create the pie chart (using matplotlib or any charting library)
     labels = list(sentiment_counts.keys())
     sizes = list(sentiment_counts.values())
     colors = ['#6dcf6d', '#f76c6c', '#6c8df7']
