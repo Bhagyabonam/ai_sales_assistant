@@ -543,8 +543,8 @@ def generate_post_call_summary(sentiment_history, recommendations=[]):
 # Main
 def main():
     
-    st.set_page_config(page_title="AI-Powered Sales Assistant", layout="wide")
-    st.title("🤖 AI-Powered Sales Assistant")
+    st.set_page_config(page_title="RealTime AI-Powered Sales Assistant", layout="wide")
+    st.title("🤖 RealTime AI-Powered Sales Assistant For Enhanced Conversation")
     st.markdown(
         "An intelligent assistant to analyze speech, handle objections, and recommend products in real-time."
     )
