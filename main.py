@@ -129,7 +129,6 @@ def load_csv(file_path):
 
 data = load_csv(csv_file_path)
 
-    
 def process_crm_data(data):
     try:
         chunks = [str(row) for row in data.to_dict(orient="records")]
@@ -170,8 +169,6 @@ def query_crm_data_with_context(prompt, top_k=3):
     except Exception as e:
         st.error(f"Error querying CRM data: {e}")
         return ["Error in querying recommendations."]
-
-
 
 sentence_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 faiss_index = faiss.IndexFlatL2(384)
@@ -280,7 +277,7 @@ def generate_comprehensive_summary(chunks):
     summary += f"• Neutral Interactions: {neutral_count}\n"
     
     summary += "\nKey Conversation Points:\n"
-    for interaction in key_interactions[:3]:  # Limit to top 3 key points
+    for interaction in key_interactions[:3]:  
         summary += f"• {interaction}\n"
     
     if positive_count > negative_count:
@@ -298,7 +295,7 @@ def add_to_sentiment_history(text, sentiment_label, sentiment_score, closest_obj
         "Sentiment": sentiment_label,
         "Score": sentiment_score,
     })
-
+# help section
 def show_help():
     
     st.title("Help Section - AI-Powered Assistant for Live Sales Calls")
@@ -481,7 +478,6 @@ def generate_post_call_summary(sentiment_history, recommendations=[]):
     summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
     combined_text = " ".join([item["Text"] for item in sentiment_history])
 
-    # summary = summarizer(combined_text, max_length=100, min_length=30, do_sample=False)[0]["summary_text"]
     scores = [item["Score"] for item in sentiment_history]
 
     st.markdown("## Summary of the Call")
@@ -532,7 +528,6 @@ def generate_post_call_summary(sentiment_history, recommendations=[]):
         for idx, entry in enumerate(sentiment_history, 1):
             st.write(f"Segment {idx}: Sentiment = {entry['Sentiment']}, Score = {entry['Score']:.2f}")
 
-# Main
 def main():
     
     st.set_page_config(page_title="RealTime AI-Powered Sales Assistant", layout="wide")
@@ -603,7 +598,7 @@ def main():
             st.session_state["app_feedback"].append(feedback)
             st.success("Thank you for your feedback!")
         
-        # Display previous feedback
+       
         if st.session_state["app_feedback"]:
             st.write("### Previous Feedback:")
             for idx, feedback_entry in enumerate(st.session_state["app_feedback"], 1):
