@@ -103,6 +103,8 @@ Follow these steps to set up the project locally:
    **Windows:**
    ```bash
    setx HUGGING_FACE_TOKEN "your_token_here"
+   or
+   HUGGING_FACE_TOKEN "your_token_here" #.env file
    ```
 
    **macOS/Linux:**
@@ -110,6 +112,10 @@ Follow these steps to set up the project locally:
    echo "export HUGGING_FACE_TOKEN='your_token_here'" >> ~/.zshrc
    # OR for bash
    echo "export HUGGING_FACE_TOKEN='your_token_here'" >> ~/.bashrc
+   ```
+   e. Run the Project:
+   ```bash
+   streamlit run main.py
    ```
 
 ## 🔹Usage Guide
@@ -150,4 +156,12 @@ Follow these steps to set up the project locally:
     Submit feedback and access help within the app interface.
        
   
-  
+## 🧰 Dependencies
+
+The project relies on the following key libraries:
+
+- **[Streamlit](https://streamlit.io/):** For building the interactive web application.
+- **[Pandas](https://pandas.pydata.org/):** For data manipulation and analysis.
+- **[Chromadb](https://docs.trychroma.com/):** Vector database for objection handling.
+- **[Pandas](https://pandas.pydata.org/):** For data manipulation and analysis.
+- **[Hugging Face](https://huggingface.co/):** For Hugging face Transformers.
