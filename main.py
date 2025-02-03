@@ -1,12 +1,10 @@
-import chromadb
 from chromadb.config import Settings
-from chromadb import Client
+from chromadb import PersistentClient
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, pipeline
 import pandas as pd
 import numpy as np
 import streamlit as st
 import speech_recognition as sr
-from textblob import TextBlob
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import torch
@@ -21,9 +19,7 @@ SPREADSHEET_ID = "1CsBub3Jlwyo7WHMQty6SDnBShIZMjl5XTVSoOKrxZhc"
 RANGE_NAME = 'Sheet1!A1:E'
 SERVICE_ACCOUNT_FILE = r"C:\Users\bhagy\AI\credentials.json"
 
-
 csv_file_path = r"C:\Users\bhagy\OneDrive\Desktop\INFOSYS PROJECT\900_products_dataset.csv"
-
 
 class CustomEmbeddingFunction:
     def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2"):
@@ -37,16 +33,15 @@ class CustomEmbeddingFunction:
         embeddings = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
         return embeddings
 
-# Initialize components
-sentiment_pipeline = pipeline("sentiment-analysis")
-chroma_client = Client(Settings(persist_directory="chromadb_storage"))
-embedding_fn = CustomEmbeddingFunction()
+persist_directory = "chromadb_storage"
+chroma_client = PersistentClient(path=persist_directory)
 collection_name = "crm_data"
 
 try:
-    collection = chroma_client.get_collection(collection_name)
+    collection = chroma_client.get_collection(name=collection_name)
 except Exception:
-    collection = chroma_client.create_collection(collection_name)
+    collection = chroma_client.create_collection(name=collection_name)
+embedding_fn = CustomEmbeddingFunction()
 
 def get_google_sheets_service():
     creds = Credentials.from_service_account_file(
@@ -83,8 +78,11 @@ def update_google_sheet(transcribed_text, sentiment,objection, recommendations,o
         st.error(f"Failed to update Google Sheets: {e}")
 
 load_dotenv()
-huggingface_api_key= os.getenv("HUGGINGFACE_TOKEN")
-login(token=huggingface_api_key)
+hf_token= os.getenv("HUGGINGFACE_TOKEN")
+login(token=hf_token)
+if not hf_token:
+    raise ValueError("Hugging Face API key not found! Please set the HUGGINGFACE_TOKEN variable.")
+print(f"API Key Loaded: {hf_token[:5]}****")
 
 model_name = "tabularisai/multilingual-sentiment-analysis"
 model = AutoModelForSequenceClassification.from_pretrained(model_name)
@@ -102,8 +100,6 @@ def analyze_sentiment(text):
         result = sentiment_analyzer(processed_text)[0]
         
         print(f"Sentiment Analysis Result: {result}")
-        
-        # Map raw labels to sentiments
         sentiment_map = {
             'Very Negative': "NEGATIVE",
             'Negative': "NEGATIVE",
@@ -517,7 +513,7 @@ def generate_post_call_summary(sentiment_history, recommendations=[]):
 
     st.markdown("### **Future Insights**")
     
-    
+   
     if overall_sentiment == "Negative":
         st.write("Consider addressing customer pain points more directly. More empathy might improve the sentiment.")
     elif overall_sentiment == "Positive":
@@ -614,8 +610,7 @@ def main():
                 st.markdown(f"{idx}. {feedback_entry}")
         else:
             st.warning("No feedback submitted yet.")
-        
-
+    
     file_path = csv_file_path  
     data = load_csv(file_path)
 
