@@ -23,7 +23,6 @@ Follow these steps to set up the project locally:
 2. **📥 Install Required System Dependencies:**
    **Version Notes:**
    - ✅ Python 3.10: Recommended version (best stability)
-   - ✅ Python 3.12: Fully Compatible
    - ❌ Python <3.10: Not Supported
      
    First, ensure you have the correct Python version:
